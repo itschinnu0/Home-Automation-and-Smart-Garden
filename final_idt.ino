@@ -15,7 +15,7 @@
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
-#include <DHT11.h>
+#include <DHT.h>
 #include <SPI.h>
 #include <MFRC522.h>
 
@@ -29,6 +29,7 @@
 #define M_SENSOR_PIN 34
 #define LED_PIN 2
 #define RFID_LED_PIN 15
+#define DHTTYPE DHT11
 
 // RFID Pins (SPI)
 #define SS_PIN 21   // SDA
@@ -49,7 +50,7 @@
 #define PWM_RES 8
 
 // Objects
-DHT11 dht11(DHT11_PIN);
+DHT dht(DHT11_PIN, DHTTYPE);
 BlynkTimer timer;
 MFRC522 rfid(SS_PIN, RST_PIN);
 
@@ -94,14 +95,11 @@ void controlFan(int temp) {
 void checkEnvironment() {
   Serial.println("\n=== checkEnvironment() START ===");
 
-  int temperature = 0;
-  int humidity = 0;
-
   Serial.println("Reading DHT11...");
-  int result = dht11.readTemperatureHumidity(temperature, humidity);
+  int humidity = dht.readHumidity();
+  int temperature = dht.readTemperature();
 
-  if (result == 0) {
-  Serial.print("[Env] Temp: ");
+  Serial.print("Temp: ");
   Serial.print(temperature);
   Serial.print("C | Hum: ");
   Serial.println(humidity);
@@ -112,10 +110,6 @@ void checkEnvironment() {
   Blynk.virtualWrite(V1, humidity);
 
   controlFan(temperature);
-  } else {
-  Serial.print("✗ DHT11 Error: ");
-  Serial.println(DHT11::getErrorString(result));
-  }
 
   Serial.println("Updating Status...");
   // Update Status String
@@ -246,6 +240,9 @@ void setup() {
 
   delay(2000);
   Serial.println("\n\n========== SYSTEM BOOT ==========");
+
+  Serial.println("Step 0: Initializing DHT11..");
+  dht.begin();
 
   Serial.println("Step 1: Initializing Pins...");
 
