@@ -40,14 +40,18 @@
 #define PWM_FREQ 1000
 #define PWM_RES 8
 
+#define HOME_TIMER_INTERVAL 60000L             // 1 minute
+#define MOISTURE_TIMER_INTERVAL 60000L         // 1 minute
+#define CRITICAL_MOISTURE_TIMER_INTERVAL 1000L // 1 second
+
 #define MIN_TEMP_THRESHOLD 26
 #define MID_TEMP_THRESHOLD 28
 #define MAX_TEMP_THRESHOLD 30
 
-#define DRY_SOIL_VALUE 4095       // Below this percentage, soil is considered dry
-#define WET_SOIL_VALUE 1500       // Above this percentage, soil is considered wet
-#define MIN_MOISTURE_THRESHOLD 30 
-#define MAX_MOISTURE_THRESHOLD 90 
+#define DRY_SOIL_VALUE 4095 // Below this percentage, soil is considered dry
+#define WET_SOIL_VALUE 1500 // Above this percentage, soil is considered wet
+#define MIN_MOISTURE_THRESHOLD 30
+#define MAX_MOISTURE_THRESHOLD 90
 
 // Objects
 BlynkTimer timer;
@@ -168,7 +172,6 @@ void checkEnvironment()
 // --- TIMER 2: MOISTURE & PUMP LOGIC ---
 // Standard: Every 1 MINUTE
 // Critical (Pump ON): Every 1 SECOND
-
 void checkMoisture()
 {
   Serial.println("[INFO]: ");
@@ -176,46 +179,37 @@ void checkMoisture()
   Serial.println("[INFO]: Reading Moisture Sensor...");
   int rawValue = analogRead(M_SENSOR_PIN);
 
-  int moisturePercent = map(rawValue, 4095, 1500, 0, 100);
+  int moisturePercent = map(rawValue, DRY_SOIL_VALUE, WET_SOIL_VALUE, 0, 100);
   moisturePercent = constrain(moisturePercent, 0, 100);
 
-  Serial.print("[Soil] Moisture: ");
+  Serial.print("[INFO]: Soil Moisture: ");
   Serial.print(moisturePercent);
   Serial.println("%");
 
   Blynk.virtualWrite(V3, moisturePercent);
 
-  // PUMP CONTROL LOGIC
-  // 1. Turn ON if dry (< 30%) AND Pump is currently OFF
-  if (moisturePercent < 30 && !isPumpOn)
+  if (moisturePercent < MIN_MOISTURE_THRESHOLD && !isPumpOn)
   {
     Serial.println("");
 
-    //   // Activate Pump
     digitalWrite(PUMP_IN3, HIGH);
     digitalWrite(PUMP_IN4, LOW);
     ledcWrite(PUMP_ENB, 255);
 
     isPumpOn = true;
-
-    //   // CHANGE TIMER TO 1 SECOND for precise shutoff
-    timer.changeInterval(moistureTimerID, 1000L);
+    timer.changeInterval(moistureTimerID, CRITICAL_MOISTURE_TIMER_INTERVAL);
   }
 
-  // // 2. Turn OFF if wet (> 90%) AND Pump is currently ON
-  else if (moisturePercent > 90 && isPumpOn)
+  else if (moisturePercent > MAX_MOISTURE_THRESHOLD && isPumpOn)
   {
     Serial.println("");
-
-    //   // Stop Pump
     digitalWrite(PUMP_IN3, LOW);
     digitalWrite(PUMP_IN4, LOW);
     ledcWrite(PUMP_ENB, 0);
 
     isPumpOn = false;
 
-    //   // REVERT TIMER TO 1 MINUTE to save resources
-    timer.changeInterval(moistureTimerID, 10000L);
+    timer.changeInterval(moistureTimerID, MOISTURE_TIMER_INTERVAL);
 
     Serial.println("");
   }
@@ -243,8 +237,9 @@ void checkRFID()
   if (content.substring(1) == masterKeyUID)
   {
     isHome = !isHome;
-    Serial.print("Access Granted. New State: ");
-    Serial.println(isHome ? "HOME" : "AWAY");
+    Serial.println("[INFO]: ✓ Access Granted!");
+    Serial.print("Home Status: ");
+    Serial.println(isHome ? "UNLOCKED" : "LOCKED");
 
     if (!isHome)
     {
@@ -262,7 +257,7 @@ void checkRFID()
   }
   else
   {
-    Serial.println("✗ Access Denied");
+    Serial.println("[INFO]: ✗ Access Denied!");
     redLedOnAndOff(2000);
   }
 
