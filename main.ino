@@ -86,16 +86,15 @@ void greenLedOnAndOff(int delayTime)
 
 void controlFan(int temp)
 {
-  Serial.println("");
+  Serial.println("[INFO]: Controlling Fan...");
   if (!isHome)
   {
-    Serial.println("");
-    Serial.println("");
+    Serial.println("[INFO]: Home is Locked. Turning Fan OFF...");
     digitalWrite(FAN_IN1, LOW);
     digitalWrite(FAN_IN2, LOW);
     ledcWrite(FAN_ENA, 0);
     isFanOn = false;
-    Serial.println("");
+    Serial.println("[INFO]: Updating Blynk V5 (Fan) to 0...");
     Blynk.virtualWrite(V5, 0);
     Serial.println("[INFO]: Fan OFF!");
     return;
@@ -103,7 +102,7 @@ void controlFan(int temp)
 
   if (isManualMode)
   {
-    Serial.println("");
+    Serial.println("[WARN]: Fan is in Manual Mode. Skipping automatic control...");
     return;
   }
 
@@ -121,6 +120,7 @@ void controlFan(int temp)
   {
     ledcWrite(FAN_ENA, 128);
     isFanOn = true;
+    Serial.println("[INFO]: Updating Blynk V5 (Fan) to 1");
     Blynk.virtualWrite(V5, 1);
     Serial.println("[INFO]: Fan Speed: 50%");
   }
@@ -128,6 +128,7 @@ void controlFan(int temp)
   {
     ledcWrite(FAN_ENA, 192);
     isFanOn = true;
+    Serial.println("[INFO]: Updating Blynk V5 (Fan) to 1");
     Blynk.virtualWrite(V5, 1);
     Serial.println("[INFO]: Fan Speed: 75%");
   }
@@ -135,19 +136,19 @@ void controlFan(int temp)
   {
     ledcWrite(FAN_ENA, 255);
     isFanOn = true;
+    Serial.println("[INFO]: Updating Blynk V5 (Fan) to 1");
     Blynk.virtualWrite(V5, 1);
     Serial.println("[INFO]: Fan Speed: 100%");
   }
 }
 
-// --- TIMER 1: ENVIRONMENT (Temp/Hum/Status) ---
-// Runs every 1 MINUTE
+// --- TIMER 1: Home Condition (Temperature / Humidity Status) ---
 
-void checkEnvironment()
+void checkHome()
 {
-  Serial.println("[INFO]: ");
+  Serial.println("[INFO]: Checking Home's Temperature & Humidity...");
 
-  Serial.println("[INFO]: Reading DHT11");
+  Serial.println("[INFO]: Reading DHT11...");
 
   int humidity = dht.readHumidity();
   int temperature = dht.readTemperature();
@@ -158,23 +159,22 @@ void checkEnvironment()
   Serial.print(humidity);
   Serial.println("%");
 
-  Serial.println("[INFO]: Writing to Blynk V0, V1...");
+  Serial.println("[INFO]: Writing to Blynk V0 (Temperature), V1 (Humidity)...");
 
   Blynk.virtualWrite(V0, temperature);
   Blynk.virtualWrite(V1, humidity);
 
-  Serial.println("[INFO]: Sending data to controlFan()..");
+  Serial.println("[INFO]: Sending data to controlFan()...");
   controlFan(temperature);
 
-  Serial.println("[INFO]: Check Environment end");
+  Serial.println("[INFO]: Check Home Condition Ended.");
 }
 
 // --- TIMER 2: MOISTURE & PUMP LOGIC ---
-// Standard: Every 1 MINUTE
 // Critical (Pump ON): Every 1 SECOND
 void checkMoisture()
 {
-  Serial.println("[INFO]: ");
+  Serial.println("[INFO]: Checking Soil Moisture...");
 
   Serial.println("[INFO]: Reading Moisture Sensor...");
   int rawValue = analogRead(M_SENSOR_PIN);
@@ -186,33 +186,31 @@ void checkMoisture()
   Serial.print(moisturePercent);
   Serial.println("%");
 
+  Serial.println("[INFO]: Writing to Blynk V3 (Soil Moisture)...");
   Blynk.virtualWrite(V3, moisturePercent);
 
   if (moisturePercent < MIN_MOISTURE_THRESHOLD && !isPumpOn)
   {
-    Serial.println("");
-
     digitalWrite(PUMP_IN3, HIGH);
     digitalWrite(PUMP_IN4, LOW);
     ledcWrite(PUMP_ENB, 255);
 
     isPumpOn = true;
+    Serial.println("[INFO]: Turning Water Pump ON...");
     timer.changeInterval(moistureTimerID, CRITICAL_MOISTURE_TIMER_INTERVAL);
   }
 
   else if (moisturePercent > MAX_MOISTURE_THRESHOLD && isPumpOn)
   {
-    Serial.println("");
     digitalWrite(PUMP_IN3, LOW);
     digitalWrite(PUMP_IN4, LOW);
     ledcWrite(PUMP_ENB, 0);
-
+    
     isPumpOn = false;
-
+    Serial.println("[INFO]: Turning Water Pump OFF...");
     timer.changeInterval(moistureTimerID, MOISTURE_TIMER_INTERVAL);
-
-    Serial.println("");
   }
+  Serial.println("[INFO]: Check Moisture Ended.");
 }
 
 // Check RFID Card
@@ -224,7 +222,7 @@ void checkRFID()
   if (!rfid.PICC_ReadCardSerial())
     return;
 
-  Serial.println("");
+  Serial.println("[INFO]: Checking RFID Card...");
 
   String content = "";
   for (byte i = 0; i < rfid.uid.size; i++)
@@ -238,8 +236,10 @@ void checkRFID()
   {
     isHome = !isHome;
     Serial.println("[INFO]: ✓ Access Granted!");
-    Serial.print("Home Status: ");
+    Serial.print("==========================\n");
+    Serial.print("[INFO]: Home Status: ");
     Serial.println(isHome ? "UNLOCKED" : "LOCKED");
+    Serial.print("==========================\n");
 
     if (!isHome)
     {
@@ -307,7 +307,7 @@ void setup()
   Serial.println("✓ Motors Reset");
 
   Serial.println("Step 4: Initializing SPI...");
-  SPI.begin(23, 18, 19); // SCK, MISO, MOSI
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN); // SCK, MISO, MOSI
   Serial.println("✓ SPI OK");
 
   Serial.println("Step 5: Initializing RFID...");
@@ -334,7 +334,7 @@ void setup()
   Serial.println("✓ Blynk Connected!");
 
   Serial.println("Step 7: Setting up timers...");
-  timer.setInterval(10000L, checkEnvironment);
+  timer.setInterval(10000L, checkHome);
   moistureTimerID = timer.setInterval(10000L, checkMoisture);
   Serial.println("✓ Timers OK");
 
@@ -344,12 +344,12 @@ void setup()
 
 BLYNK_WRITE(V2)
 {
-  Serial.print("Blynk V2 Write: ");
+  Serial.print("[INFO]: Blynk V2 (LED) Value: ");
   Serial.println(param.asInt());
 
   if (!isHome)
   {
-    Serial.println("LED OFF (Not Home)");
+    Serial.println("[INFO]: LED OFF (Not in a Home)");
     Blynk.virtualWrite(V2, 0);
     return;
   }
@@ -358,46 +358,39 @@ BLYNK_WRITE(V2)
   if (buttonState == 1)
   {
     digitalWrite(LED_PIN, HIGH);
-    Serial.println("LED ON!");
+    Serial.println("[INFO]: LED ON!");
   }
   else
   {
     digitalWrite(LED_PIN, LOW);
-    Serial.println("LED OFF!");
+    Serial.println("[INFO]: LED OFF!");
   }
 }
 
 BLYNK_WRITE(V4)
 {
-  Serial.print("Blynk V4 Write: ");
+  Serial.print("[INFO]: Blynk V4 (Home Status) Value: ");
   Serial.println(param.asInt());
 
-  int buttonState = param.asInt();
-  if (buttonState == 1)
-  {
-    isHome = true;
-  }
-  else
-  {
-    isHome = false;
-  }
+  // This widget is read-only. Ignore any changes.
+  Blynk.virtualWrite(V4, isHome ? 1 : 0);
 }
 
 BLYNK_WRITE(V5)
 {
-  Serial.print("Blynk V5 Write: ");
+  Serial.print("[INFO]: Blynk V5 (Fan) Value: ");
   Serial.println(param.asInt());
 
   if (!isHome)
   {
-    Serial.println("FAN OFF (Not Home)");
+    Serial.println("[INFO]: FAN OFF (Not in a Home)");
     Blynk.virtualWrite(V5, 0);
     return;
   }
 
   if (!isManualMode)
   {
-    Serial.println("Fan is not manual mode!");
+    Serial.println("[WARN]: Fan is not in Manual Mode!");
     return;
   }
 
@@ -409,19 +402,19 @@ BLYNK_WRITE(V5)
   {
     isFanOn = true;
     ledcWrite(FAN_ENA, 255);
-    Serial.println("FAN ON!");
+    Serial.println("[INFO]: FAN ON!");
   }
   else
   {
     isFanOn = false;
     ledcWrite(FAN_ENA, 0);
-    Serial.println("FAN OFF!");
+    Serial.println("[INFO]: FAN OFF!");
   }
 }
 
 BLYNK_WRITE(V6)
 {
-  Serial.print("Blynk V6 Write: ");
+  Serial.print("[INFO]: Blynk V6 (Manual Mode) Value: ");
   Serial.println(param.asInt());
 
   int buttonState = param.asInt();
@@ -440,30 +433,28 @@ BLYNK_WRITE(V7)
 
   if (!isHome)
   {
-    Serial.println("FAN OFF (Not Home)");
+    Serial.println("[INFO]: FAN OFF (Not in a Home)");
     Blynk.virtualWrite(V5, 0);
     return;
   }
 
   if (!isFanOn)
   {
-    Serial.println("Fan is not on!");
+    Serial.println("[WARN]: Fan is not ON!");
     return;
   }
 
   if (isManualMode)
   {
     int fanSpeed = param.asInt();
-    Serial.print("Blynk Speed: ");
+    Serial.print("[INFO]: Blynk Speed: ");
     Serial.println(fanSpeed);
     int speed = (fanSpeed * 255) / 100;
-    ;
-    Serial.print("Speed: ");
-    Serial.println(speed);
 
     ledcWrite(FAN_ENA, speed);
-    Serial.print("Fan running on ");
-    Serial.println(speed);
+    Serial.print("[INFO]: Fan running on speed: ");
+    Serial.print(speed);
+    Serial.println("%");
   }
 }
 
