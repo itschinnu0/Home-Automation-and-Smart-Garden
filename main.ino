@@ -482,7 +482,7 @@ BLYNK_WRITE(V16)
 }
 
 BLYNK_WRITE(V17)
-{ // Home Timer (seconds)
+{
   HOME_TIMER_INTERVAL = param.asLong() * 1000;
 
   if (homeTimerID != -1)
@@ -497,10 +497,11 @@ BLYNK_WRITE(V17)
 }
 
 BLYNK_WRITE(V18)
-{ // Moisture Timer (seconds)
+{
   MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
 
-   if (moistureTimerID != -1) {
+  if (moistureTimerID != -1)
+  {
     timer.deleteTimer(moistureTimerID);
   }
 
@@ -511,7 +512,7 @@ BLYNK_WRITE(V18)
 }
 
 BLYNK_WRITE(V19)
-{ // Critical Moisture Timer (seconds)
+{
   CRITICAL_MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
 }
 
