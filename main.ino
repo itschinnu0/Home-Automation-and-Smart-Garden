@@ -40,18 +40,22 @@
 #define PWM_FREQ 1000
 #define PWM_RES 8
 
-#define HOME_TIMER_INTERVAL 60000L             // 1 minute
-#define MOISTURE_TIMER_INTERVAL 60000L         // 1 minute
-#define CRITICAL_MOISTURE_TIMER_INTERVAL 1000L // 1 second
+// ================= TIMERS (milliseconds) =================
+unsigned long HOME_TIMER_INTERVAL = 60000;             // 1 minute
+unsigned long MOISTURE_TIMER_INTERVAL = 60000;         // 1 minute
+unsigned long CRITICAL_MOISTURE_TIMER_INTERVAL = 1000; // 1 second
 
-#define MIN_TEMP_THRESHOLD 26
-#define MID_TEMP_THRESHOLD 28
-#define MAX_TEMP_THRESHOLD 30
+// ================= TEMPERATURE THRESHOLDS =================
+int MIN_TEMP_THRESHOLD = 26;
+int MID_TEMP_THRESHOLD = 28;
+int MAX_TEMP_THRESHOLD = 30;
 
-#define DRY_SOIL_VALUE 4095 // Below this percentage, soil is considered dry
-#define WET_SOIL_VALUE 1500 // Above this percentage, soil is considered wet
-#define MIN_MOISTURE_THRESHOLD 30
-#define MAX_MOISTURE_THRESHOLD 90
+// ================= SOIL MOISTURE VALUES =================
+int DRY_SOIL_VALUE = 4095;
+int WET_SOIL_VALUE = 1500;
+
+int MIN_MOISTURE_THRESHOLD = 30;
+int MAX_MOISTURE_THRESHOLD = 90;
 
 // Objects
 BlynkTimer timer;
@@ -64,7 +68,8 @@ bool isFanOn = false;
 bool isPumpOn = false;
 bool isManualMode = false;
 
-int moistureTimerID;
+int homeTimerID = -1;
+int moistureTimerID = -1;
 
 String masterKeyUID = "A3 32 01 2D";
 
@@ -143,7 +148,6 @@ void controlFan(int temp)
 }
 
 // --- TIMER 1: Home Condition (Temperature / Humidity Status) ---
-
 void checkHome()
 {
   Serial.println("[INFO]: Checking Home's Temperature & Humidity...");
@@ -205,7 +209,7 @@ void checkMoisture()
     digitalWrite(PUMP_IN3, LOW);
     digitalWrite(PUMP_IN4, LOW);
     ledcWrite(PUMP_ENB, 0);
-    
+
     isPumpOn = false;
     Serial.println("[INFO]: Turning Water Pump OFF...");
     timer.changeInterval(moistureTimerID, MOISTURE_TIMER_INTERVAL);
@@ -268,14 +272,10 @@ void checkRFID()
 void setup()
 {
   Serial.begin(115200);
-
   delay(5000);
   Serial.println("========== SYSTEM BOOT ==========");
 
-  Serial.println("Step 0: Initializing DHT11..");
   dht.begin();
-
-  Serial.println("Step 1: Initializing Pins...");
 
   pinMode(LED_PIN, OUTPUT);
   pinMode(RFID_GREEN_LED_PIN, OUTPUT);
@@ -285,17 +285,8 @@ void setup()
   pinMode(PUMP_IN3, OUTPUT);
   pinMode(PUMP_IN4, OUTPUT);
 
-  Serial.println("✓ Pins OK");
-
-  Serial.println("Step 2: Attaching PWM...");
-
   ledcAttach(FAN_ENA, PWM_FREQ, PWM_RES);
   ledcAttach(PUMP_ENB, PWM_FREQ, PWM_RES);
-
-  Serial.println("✓ PWM OK");
-
-  // Initial State: Motors OFF
-  Serial.println("Step 3: Motors OFF...");
 
   digitalWrite(FAN_IN1, LOW);
   digitalWrite(FAN_IN2, LOW);
@@ -304,13 +295,8 @@ void setup()
   digitalWrite(PUMP_IN4, LOW);
   ledcWrite(PUMP_ENB, 0);
 
-  Serial.println("✓ Motors Reset");
-
-  Serial.println("Step 4: Initializing SPI...");
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN); // SCK, MISO, MOSI
-  Serial.println("✓ SPI OK");
 
-  Serial.println("Step 5: Initializing RFID...");
   rfid.PCD_Init();
   delay(100);
 
@@ -321,7 +307,7 @@ void setup()
 
   if (version == 0x00 || version == 0xFF)
   {
-    Serial.println("✗ WARNING: RFID not detected! Check wiring (especially 3.3V and GND)");
+    Serial.println("✗ WARNING: RFID not detected!");
     Serial.println("System will continue, but RFID won't work");
   }
   else
@@ -329,17 +315,19 @@ void setup()
     Serial.println("✓ RFID OK");
   }
 
-  Serial.println("Step 6: Connecting to Blynk...");
   Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASSWORD);
-  Serial.println("✓ Blynk Connected!");
 
-  Serial.println("Step 7: Setting up timers...");
-  timer.setInterval(10000L, checkHome);
-  moistureTimerID = timer.setInterval(10000L, checkMoisture);
-  Serial.println("✓ Timers OK");
+  homeTimerID = timer.setInterval(HOME_TIMER_INTERVAL, checkHome);
+  moistureTimerID = timer.setInterval(MOISTURE_TIMER_INTERVAL, checkMoisture);
+
+  Blynk.syncAll();
+
+  Blynk.virtualWrite(V2, 0);              // LED
+  Blynk.virtualWrite(V4, isHome ? 1 : 0); // Home Status
+  Blynk.virtualWrite(V5, 0);              // Fan
+  Blynk.virtualWrite(V6, 0);              // Manual Mode
 
   Serial.println("\n========== BOOT COMPLETE ==========");
-  Serial.println("Entering main loop...\n");
 }
 
 BLYNK_WRITE(V2)
@@ -456,6 +444,75 @@ BLYNK_WRITE(V7)
     Serial.print(speed);
     Serial.println("%");
   }
+}
+
+BLYNK_WRITE(V10)
+{
+  MIN_TEMP_THRESHOLD = param.asInt();
+}
+
+BLYNK_WRITE(V11)
+{
+  MID_TEMP_THRESHOLD = param.asInt();
+}
+
+BLYNK_WRITE(V12)
+{
+  MAX_TEMP_THRESHOLD = param.asInt();
+}
+
+BLYNK_WRITE(V13)
+{
+  DRY_SOIL_VALUE = param.asInt();
+}
+
+BLYNK_WRITE(V14)
+{
+  WET_SOIL_VALUE = param.asInt();
+}
+
+BLYNK_WRITE(V15)
+{
+  MIN_MOISTURE_THRESHOLD = param.asInt();
+}
+
+BLYNK_WRITE(V16)
+{
+  MAX_MOISTURE_THRESHOLD = param.asInt();
+}
+
+BLYNK_WRITE(V17)
+{ // Home Timer (seconds)
+  HOME_TIMER_INTERVAL = param.asLong() * 1000;
+
+  if (homeTimerID != -1)
+  {
+    timer.deleteTimer(homeTimerID);
+  }
+
+  homeTimerID = timer.setInterval(HOME_TIMER_INTERVAL, checkHome);
+
+  Serial.print("[INFO]: Home Timer updated to: ");
+  Serial.println(HOME_TIMER_INTERVAL);
+}
+
+BLYNK_WRITE(V18)
+{ // Moisture Timer (seconds)
+  MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
+
+   if (moistureTimerID != -1) {
+    timer.deleteTimer(moistureTimerID);
+  }
+
+  moistureTimerID = timer.setInterval(MOISTURE_TIMER_INTERVAL, checkMoisture);
+
+  Serial.print("[INFO]: Moisture Timer updated to: ");
+  Serial.println(MOISTURE_TIMER_INTERVAL);
+}
+
+BLYNK_WRITE(V19)
+{ // Critical Moisture Timer (seconds)
+  CRITICAL_MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
 }
 
 void loop()
