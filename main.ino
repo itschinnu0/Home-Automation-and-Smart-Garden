@@ -10,10 +10,17 @@
  *  - Structured Logging System
  ************************************************************/
 
-// ================= LOGGING SYSTEM =================
-bool isDebugEnabled = true;
+// ================= LIBRARIES =================
+#include <SPI.h>
+#include <DHT.h>
+#include <WiFi.h>
+#include <MFRC522.h>
+#include <WiFiManager.h>
+#include <BlynkSimpleEsp32.h>
 
-#define CURRENT_LOG_LEVEL LOG_LEVEL_DEBUG // Change to INFO for final use
+// ================= LOGGING SYSTEM =================
+
+bool isDebugEnabled = true;
 
 #define LOG_INFO(msg) Serial.println(String("[INFO]: ") + msg)
 #define LOG_WARN(msg) Serial.println(String("[WARN]: ") + msg)
@@ -23,25 +30,19 @@ bool isDebugEnabled = true;
   Serial.println(String("[DEBUG]: ") + msg)
 
 // ================= BLYNK CONFIG =================
-#define BLYNK_TEMPLATE_ID ""
-#define BLYNK_TEMPLATE_NAME ""
-#define BLYNK_AUTH_TOKEN ""
+#define BLYNK_TEMPLATE_ID "TMPL3mb8grOS1"
+#define BLYNK_TEMPLATE_NAME "Home Automation and Smart Garden"
+#define BLYNK_AUTH_TOKEN "Our8GSqOFmjdBcpFKVLX3Swg4W5_71hb"
 #define BLYNK_PRINT Serial
 
-#include <WiFi.h>
-#include <BlynkSimpleEsp32.h>
-#include <DHT.h>
-#include <SPI.h>
-#include <MFRC522.h>
-
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
-
-#define DHT11_PIN 4
 #define M_SENSOR_PIN 34
-#define LED_PIN 2
+
+#define ESP32_LED_PIN 2
+#define LED_PIN 12
 #define RFID_GREEN_LED_PIN 15
 #define RFID_RED_LED_PIN 5
+
+#define DHT11_PIN 4
 #define DHTTYPE DHT11
 
 // RFID Pins
@@ -83,6 +84,10 @@ short MIN_MOISTURE_THRESHOLD = 30;
 short MAX_MOISTURE_THRESHOLD = 90;
 
 // ================= OBJECTS =================
+WiFiManager wm;
+bool wifiLost = false;
+unsigned long wifiLostTime = 0;
+
 BlynkTimer timer;
 DHT dht(DHT11_PIN, DHTTYPE);
 MFRC522 rfid(SS_PIN, RST_PIN);
@@ -111,6 +116,21 @@ void greenLedOnAndOff(int delayTime)
   digitalWrite(RFID_GREEN_LED_PIN, HIGH);
   delay(delayTime);
   digitalWrite(RFID_GREEN_LED_PIN, LOW);
+}
+
+void ledAP()
+{
+  digitalWrite(LED_PIN, millis() % 1000 < 100 ? HIGH : LOW);
+}
+
+void ledWiFi()
+{
+  digitalWrite(ESP32_LED_PIN, HIGH);
+}
+
+void ledBlynk()
+{
+  digitalWrite(ESP32_LED_PIN, LOW);
 }
 
 void controlFan(int temp)
@@ -190,8 +210,8 @@ void checkHome()
     LOG_ERROR("DHT11 read failed!");
     return;
   }
-  LOG_DEBUG("Writing to Blynk V0 (Temperature), V1 (Humidity)...");
 
+  LOG_DEBUG("Writing to Blynk V0 (Temperature), V1 (Humidity)...");
   Blynk.virtualWrite(V0, temperature);
   Blynk.virtualWrite(V1, humidity);
 
@@ -272,7 +292,7 @@ void checkRFID()
     if (!isHome)
     {
       LOG_DEBUG("Updating Blynk V4 (Home Status) to 0...");
-      Blynk.virtualWrite(V4, 0);
+      Blynk.virtualWrite(V4, "Locked");
       greenLedOnAndOff(500);
       delay(250);
       greenLedOnAndOff(500);
@@ -280,7 +300,7 @@ void checkRFID()
     else
     {
       LOG_DEBUG("Updating Blynk V4 (Home Status) to 1...");
-      Blynk.virtualWrite(V4, 1);
+      Blynk.virtualWrite(V4, "Unlocked");
       greenLedOnAndOff(500);
     }
     delay(1000);
@@ -347,8 +367,25 @@ void setup()
     LOG_INFO("✓ RFID OK");
   }
 
+  LOG_DEBUG("Connecting to WiFi using WiFiManager...");
 
-  Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASSWORD);
+  wm.setConnectTimeout(15);
+  wm.setConfigPortalTimeout(180);
+  wm.setTitle("Home Automation with Smart Garden");
+
+  bool connectWiFi = wm.autoConnect("ESP32-HAwSG", "12345678");
+
+  LOG_INFO(connectWiFi ? "✓ WiFi Connected!" : "✗ WiFi Connection Failed!");
+
+  if (!connectWiFi)
+  {
+    LOG_ERROR("Failed to connect to WiFi and timeout reached!");
+    LOG_ERROR("Restarting ESP32...");
+    delay(3000);
+    ESP.restart();
+  }
+
+  Blynk.config(BLYNK_AUTH_TOKEN);
 
   homeTimerID = timer.setInterval(HOME_TIMER_INTERVAL, checkHome);
   moistureTimerID = timer.setInterval(MOISTURE_TIMER_INTERVAL, checkMoisture);
@@ -356,10 +393,10 @@ void setup()
   Blynk.syncAll();
 
   LOG_DEBUG("Initial States to Blynk...");
-  Blynk.virtualWrite(V2, 0);              // LED
-  Blynk.virtualWrite(V4, isHome ? 1 : 0); // Home Status
-  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);              // Fan
-  Blynk.virtualWrite(V6, isManualMode ? 1 : 0);              // Manual Mode
+  Blynk.virtualWrite(V2, 0);                    // LED
+  Blynk.virtualWrite(V4, isHome ? 1 : 0);       // Home Status
+  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);      // Fan
+  Blynk.virtualWrite(V6, isManualMode ? 1 : 0); // Manual Mode
 
   LOG_INFO("========== BOOT COMPLETE ==========");
 }
@@ -549,16 +586,39 @@ BLYNK_WRITE(V18)
   LOG_INFO("[INFO]: Moisture Timer updated to: " + String(MOISTURE_TIMER_INTERVAL));
 }
 
-BLYNK_WRITE(V19)
-{
-  CRITICAL_MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
-
-  LOG_INFO("[INFO]: Critical Moisture Timer updated to: " + String(CRITICAL_MOISTURE_TIMER_INTERVAL));
-}
-
 void loop()
 {
   Blynk.run();
   timer.run();
   checkRFID();
+
+  if (!WiFi.isConnected())
+  {
+    ledAP();
+
+    if (!wifiLost)
+    {
+      wifiLost = true;
+      wifiLostTime = millis();
+      LOG_ERROR("WiFi lost! Waiting before reboot...");
+    }
+    // Wait 15 seconds before reboot
+    if (millis() - wifiLostTime > 15000)
+    {
+      LOG_ERROR("WiFi not restored. Rebooting...");
+      delay(1000);
+      ESP.restart();
+    }
+  }
+  else if (!Blynk.connected())
+  {
+    ledWiFi();
+    Blynk.connect(5000); // Try for 5 sec
+  }
+  // -------- WIFI OK --------
+  else
+  {
+    wifiLost = false;
+    digitalWrite(ESP32_LED_PIN, LOW);
+  }
 }
