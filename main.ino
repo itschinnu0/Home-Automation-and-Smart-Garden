@@ -11,7 +11,7 @@
  ************************************************************/
 
 // ================= LOGGING SYSTEM =================
-short isDebugEnabled = 0;
+bool isDebugEnabled = true;
 
 #define CURRENT_LOG_LEVEL LOG_LEVEL_DEBUG // Change to INFO for final use
 
@@ -209,6 +209,7 @@ void checkMoisture()
 
   LOG_DEBUG("Reading Moisture Sensor...");
   int rawValue = analogRead(M_SENSOR_PIN);
+  LOG_DEBUG("Raw Moisture Sensor Value: " + String(rawValue));
 
   int moisturePercent = map(rawValue, DRY_SOIL_VALUE, WET_SOIL_VALUE, 0, 100);
   moisturePercent = constrain(moisturePercent, 0, 100);
