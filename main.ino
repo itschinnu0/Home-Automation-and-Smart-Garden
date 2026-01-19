@@ -765,6 +765,7 @@ void loop()
   else
   {
     wifiLost = false;
+    apBlinking = false;
     ledWiFi();
   }
 }
