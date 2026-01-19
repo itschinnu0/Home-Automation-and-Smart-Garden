@@ -49,11 +49,11 @@
 #define DHTTYPE DHT11
 
 // RFID
-#define MISO_PIN 18
-#define MOSI_PIN 19
-#define SS_PIN   21
-#define RST_PIN  22
-#define SCK_PIN  23
+#define MISO_PIN 18 // MISO
+#define MOSI_PIN 19 // MOSI
+#define SS_PIN 21   // SDA
+#define RST_PIN 22  // RST
+#define SCK_PIN 23  // SCK
 
 // L298N - Fan
 #define FAN_IN1 26
@@ -286,6 +286,7 @@ void setup()
 }
 
 // ================= BLYNK HANDLERS =================
+
 BLYNK_WRITE(V2)
 {
   if (!isHome)
