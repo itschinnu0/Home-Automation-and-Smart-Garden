@@ -739,7 +739,7 @@ void loop()
   ledAPLoop();
   if (!WiFi.isConnected())
   {
-    ledAP();
+    apBlinking = true;
 
     if (!wifiLost)
     {
@@ -757,6 +757,7 @@ void loop()
   }
   else if (!Blynk.connected())
   {
+    apBlinking = false;
     ledWiFi();
     Blynk.connect(5000); // Try for 5 sec
   }
