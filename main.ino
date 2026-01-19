@@ -87,7 +87,7 @@ void logMsg(String msg)
 // ================= TIMERS (milliseconds) =================
 unsigned long HOME_TIMER_INTERVAL;
 unsigned long MOISTURE_TIMER_INTERVAL;
-unsigned long CRITICAL_MOISTURE_TIMER_INTERVAL;
+unsigned long CRITICAL_MOISTURE_TIMER_INTERVAL = 1000;
 
 // ================= TEMPERATURE THRESHOLDS =================
 short MIN_TEMP_THRESHOLD;
@@ -124,6 +124,10 @@ int moistureTimerID = -1;
 
 String masterKeyUID = "A3 32 01 2D";
 
+bool apBlinking = false;
+unsigned long lastBlink = 0;
+bool ledState = false;
+
 // ================= HELPER FUNCTIONS =================
 void redLedOnAndOff(int delayTime)
 {
@@ -139,22 +143,28 @@ void greenLedOnAndOff(int delayTime)
   digitalWrite(RFID_GREEN_LED_PIN, LOW);
 }
 
-void ledAP()
+void ledAPLoop()
 {
-  digitalWrite(ESP32_LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(ESP32_LED_PIN, LOW);
-  delay(500);
+  if (!apBlinking)
+    return;
+
+  if (millis() - lastBlink >= 500)
+  {
+    lastBlink = millis();
+    ledState = !ledState;
+    digitalWrite(ESP32_LED_PIN, ledState);
+  }
+}
+
+void configModeCallback(WiFiManager *wm)
+{
+  LOG_INFO("Entered WiFi AP / Config mode!");
+  apBlinking = true;
 }
 
 void ledWiFi()
 {
   digitalWrite(ESP32_LED_PIN, HIGH);
-}
-
-void ledBlynk()
-{
-  digitalWrite(ESP32_LED_PIN, LOW);
 }
 
 void loadSettings()
@@ -175,22 +185,6 @@ void loadSettings()
   isFanOn = prefs.getBool("isFanOn", false);
   isLightOn = prefs.getBool("isLightOn", false);
   prefs.end();
-}
-
-int loadInt(const char *key, int def)
-{
-  prefs.begin("settings", true);
-  int val = prefs.getInt(key, def);
-  prefs.end();
-  return val;
-}
-
-bool loadBool(const char *key, bool def)
-{
-  prefs.begin("settings", true);
-  bool val = prefs.getBool(key, def);
-  prefs.end();
-  return val;
 }
 
 void saveInt(const char *key, int value)
@@ -298,6 +292,13 @@ void checkHome()
   Blynk.virtualWrite(V0, temperature);
   Blynk.virtualWrite(V1, humidity);
 
+  if (isManualMode)
+  {
+    LOG_DEBUG("Skipping auto control (Manual Mode)");
+    LOG_DEBUG("checkHome() ended.");
+    return;
+  }
+
   LOG_DEBUG("Sending data to controlFan()...");
   controlFan(temperature);
 
@@ -327,7 +328,11 @@ void checkMoisture()
   {
     digitalWrite(PUMP_IN3, HIGH);
     digitalWrite(PUMP_IN4, LOW);
-    ledcWrite(PUMP_ENB, 255);
+    for (int i = 0; i <= 255; i += 5)
+    {
+      ledcWrite(PUMP_ENB, i);
+      delay(10);
+    }
 
     isPumpOn = true;
     LOG_INFO("Turning Water Pump ON...");
@@ -337,9 +342,13 @@ void checkMoisture()
 
   else if (moisturePercent > MAX_MOISTURE_THRESHOLD && isPumpOn)
   {
+    for (int i = 255; i >= 0; i -= 5)
+    {
+      ledcWrite(PUMP_ENB, i);
+      delay(10);
+    }
     digitalWrite(PUMP_IN3, LOW);
     digitalWrite(PUMP_IN4, LOW);
-    ledcWrite(PUMP_ENB, 0);
 
     isPumpOn = false;
     LOG_INFO("Turning Water Pump OFF...");
@@ -466,8 +475,14 @@ void setup()
   wm.setConfigPortalTimeout(180);
   wm.setTitle("Home Automation with Smart Garden");
 
+  wm.setAPCallback(configModeCallback);
+
+  apBlinking = true;
+
   bool connectWiFi = wm.autoConnect("ESP32-HAwSG", "123456789");
-  ledAP();
+
+  apBlinking = false;
+  digitalWrite(ESP32_LED_PIN, LOW);
 
   if (!connectWiFi)
   {
@@ -479,7 +494,7 @@ void setup()
   }
   else
   {
-    LOG_INFO("✓ WiFi Connected!")
+    LOG_INFO("✓ WiFi Connected!");
     ledWiFi();
   }
 
@@ -488,10 +503,9 @@ void setup()
   if (Blynk.connect(10000))
   {
     LOG_INFO("✓ Blynk Connected!");
-    ledBlynk();
     Blynk.syncAll();
     terminal.clear();
-    logMsg("ESP32 is Connected to Blynk!");
+    logMsg("[INFO]: ESP32 is Connected to Blynk!");
   }
   else
   {
@@ -709,7 +723,8 @@ BLYNK_WRITE(V18)
   logMsg("[INFO]: Moisture Timer updated to: " + String(MOISTURE_TIMER_INTERVAL));
 }
 
-BLYNK_WRITE(50) {
+BLYNK_WRITE(50)
+{
   isDebugEnabled = param.asInt();
   LOG_INFO("Debug Logging " + String(isDebugEnabled ? "ENABLED" : "DISABLED"));
   logMsg("[INFO]: Debug Logging " + String(isDebugEnabled ? "ENABLED" : "DISABLED"));
@@ -721,7 +736,7 @@ void loop()
   Blynk.run();
   timer.run();
   checkRFID();
-
+  ledAPLoop();
   if (!WiFi.isConnected())
   {
     ledAP();
@@ -749,6 +764,6 @@ void loop()
   else
   {
     wifiLost = false;
-    ledBlynk();
+    ledWiFi();
   }
 }
