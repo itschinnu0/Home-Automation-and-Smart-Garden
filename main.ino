@@ -172,11 +172,17 @@ void loadSettings() {
 }
 
 int loadInt(const char* key, int def) {
-  return prefs.getInt(key, def);
+  prefs.begin("settings", true);
+  int val = prefs.getInt(key, def);
+  prefs.end();
+  return val;
 }
 
 bool loadBool(const char* key, bool def) {
-  return prefs.getBool(key, def);
+  prefs.begin("settings", true);
+  bool val = prefs.getBool(key, def);
+  prefs.end();
+  return val;
 }
 
 void saveInt(const char* key, int value) {
@@ -349,10 +355,12 @@ void checkRFID() {
       greenLedOnAndOff(500);
       delay(250);
       greenLedOnAndOff(500);
+      saveBool("isHome", isHome);
     } else {
       LOG_DEBUG("Updating Blynk V4 (Home Status) to 1...");
       Blynk.virtualWrite(V4, "Unlocked");
       greenLedOnAndOff(500);
+      saveBool("isHome", isHome);
     }
     delay(1000);
   } else {
