@@ -515,7 +515,7 @@ void setup()
 
   LOG_DEBUG("Initial States to Blynk...");
   Blynk.virtualWrite(V2, 0);                    // LED
-  Blynk.virtualWrite(V4, isHome ? 1 : 0);       // Home Status
+  Blynk.virtualWrite(V4, isHome ? "Unlocked" : "Locked");       // Home Status
   Blynk.virtualWrite(V5, isFanOn ? 1 : 0);      // Fan
   Blynk.virtualWrite(V6, isManualMode ? 1 : 0); // Manual Mode
   Blynk.syncVirtual(V5, V7);
