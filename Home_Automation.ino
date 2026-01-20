@@ -36,10 +36,8 @@ WidgetTerminal terminal(V90);
 
 bool isDebugEnabled = false;
 
-void logMsg(String msg)
-{
-  if (Blynk.connected())
-  {
+void logMsg(String msg) {
+  if (Blynk.connected()) {
     terminal.println(msg);
     terminal.flush();
   }
@@ -49,7 +47,7 @@ void logMsg(String msg)
 #define LOG_WARN(msg) Serial.println(String("[WARN]: ") + msg)
 #define LOG_ERROR(msg) Serial.println(String("[ERROR]: ") + msg)
 #define LOG_DEBUG(msg) \
-  if (isDebugEnabled)  \
+  if (isDebugEnabled) \
   Serial.println(String("[DEBUG]: ") + msg)
 
 //
@@ -64,11 +62,11 @@ void logMsg(String msg)
 #define DHTTYPE DHT11
 
 // RFID Pins
-#define MISO_PIN 18 // MISO
-#define MOSI_PIN 19 // MOSI
-#define SS_PIN 21   // SDA
-#define RST_PIN 22  // RST
-#define SCK_PIN 23  // SCK
+#define MISO_PIN 18  // MISO
+#define MOSI_PIN 19  // MOSI
+#define SS_PIN 21    // SDA
+#define RST_PIN 22   // RST
+#define SCK_PIN 23   // SCK
 
 // Motor A (Fan) - L298N
 #define FAN_IN1 26
@@ -102,10 +100,6 @@ int WET_SOIL_VALUE;
 short MIN_MOISTURE_THRESHOLD;
 short MAX_MOISTURE_THRESHOLD;
 
-// ================= SECURITY NOTIFICATION =================
-unsigned long lastAlertTime = 0;
-const unsigned long ALERT_COOLDOWN = 30000; // 30 seconds
-
 // ================= OBJECTS =================
 WiFiManager wm;
 bool wifiLost = false;
@@ -133,46 +127,39 @@ unsigned long lastBlink = 0;
 bool ledState = false;
 
 // ================= HELPER FUNCTIONS =================
-void redLedOnAndOff(int delayTime)
-{
+void redLedOnAndOff(int delayTime) {
   digitalWrite(RFID_RED_LED_PIN, HIGH);
   delay(delayTime);
   digitalWrite(RFID_RED_LED_PIN, LOW);
 }
 
-void greenLedOnAndOff(int delayTime)
-{
+void greenLedOnAndOff(int delayTime) {
   digitalWrite(RFID_GREEN_LED_PIN, HIGH);
   delay(delayTime);
   digitalWrite(RFID_GREEN_LED_PIN, LOW);
 }
 
-void ledAPLoop()
-{
+void ledAPLoop() {
   if (!apBlinking)
     return;
 
-  if (millis() - lastBlink >= 500)
-  {
+  if (millis() - lastBlink >= 500) {
     lastBlink = millis();
     ledState = !ledState;
     digitalWrite(ESP32_LED_PIN, ledState);
   }
 }
 
-void configModeCallback(WiFiManager *wm)
-{
+void configModeCallback(WiFiManager *wm) {
   LOG_INFO("Entered WiFi AP / Config mode!");
   apBlinking = true;
 }
 
-void ledWiFi()
-{
+void ledWiFi() {
   digitalWrite(ESP32_LED_PIN, HIGH);
 }
 
-void loadSettings()
-{
+void loadSettings() {
   prefs.begin("settings", true);
   MIN_TEMP_THRESHOLD = prefs.getInt("minT", 28);
   MID_TEMP_THRESHOLD = prefs.getInt("midT", 32);
@@ -191,27 +178,23 @@ void loadSettings()
   prefs.end();
 }
 
-void saveInt(const char *key, int value)
-{
+void saveInt(const char *key, int value) {
   prefs.begin("settings", false);
   prefs.putInt(key, value);
   prefs.end();
 }
 
-void saveBool(const char *key, bool value)
-{
+void saveBool(const char *key, bool value) {
   prefs.begin("settings", false);
   prefs.putBool(key, value);
   prefs.end();
 }
 
-void controlFan(int temp)
-{
+void controlFan(int temp) {
   LOG_DEBUG("controlFan() invoked");
   LOG_INFO("Controlling Fan with Temperature = " + String(temp) + "°C");
   logMsg("[INFO]: Controlling Fan with Temperature = " + String(temp) + "°C");
-  if (!isHome)
-  {
+  if (!isHome) {
     LOG_WARN("Home is Locked. Turning Fan OFF...");
     logMsg("[WARN]: Home is Locked. Turning Fan OFF...");
     digitalWrite(FAN_IN1, LOW);
@@ -224,8 +207,7 @@ void controlFan(int temp)
     return;
   }
 
-  if (isManualMode)
-  {
+  if (isManualMode) {
     LOG_WARN("Fan is in Manual Mode. Skipping automatic control...");
     logMsg("[WARN]: Fan is in Manual Mode. Skipping automatic control...");
     return;
@@ -234,34 +216,27 @@ void controlFan(int temp)
   digitalWrite(FAN_IN1, HIGH);
   digitalWrite(FAN_IN2, LOW);
 
-  if (temp < MIN_TEMP_THRESHOLD)
-  {
+  if (temp < MIN_TEMP_THRESHOLD) {
     ledcWrite(FAN_ENA, 0);
     isFanOn = false;
     Blynk.virtualWrite(V5, 0);
     LOG_INFO("Fan Speed: 0%");
     logMsg("[INFO]: Fan Speed: 0%");
-  }
-  else if (temp >= MIN_TEMP_THRESHOLD && temp <= MID_TEMP_THRESHOLD)
-  {
+  } else if (temp >= MIN_TEMP_THRESHOLD && temp <= MID_TEMP_THRESHOLD) {
     ledcWrite(FAN_ENA, 128);
     isFanOn = true;
     LOG_DEBUG("Updating Blynk V5 (Fan) to 1...");
     Blynk.virtualWrite(V5, 1);
     LOG_INFO("Fan Speed: 50%");
     logMsg("[INFO]: Fan Speed: 50%");
-  }
-  else if (temp > MID_TEMP_THRESHOLD && temp <= MAX_TEMP_THRESHOLD)
-  {
+  } else if (temp > MID_TEMP_THRESHOLD && temp <= MAX_TEMP_THRESHOLD) {
     ledcWrite(FAN_ENA, 192);
     isFanOn = true;
     LOG_DEBUG("Updating Blynk V5 (Fan) to 1...");
     Blynk.virtualWrite(V5, 1);
     LOG_INFO("Fan Speed: 75%");
     logMsg("[INFO]: Fan Speed: 75%");
-  }
-  else if (temp > MAX_TEMP_THRESHOLD)
-  {
+  } else if (temp > MAX_TEMP_THRESHOLD) {
     ledcWrite(FAN_ENA, 255);
     isFanOn = true;
     LOG_DEBUG("Updating Blynk V5 (Fan) to 1...");
@@ -274,8 +249,7 @@ void controlFan(int temp)
 }
 
 // --- TIMER 1: Home Condition (Temperature / Humidity Status) ---
-void checkHome()
-{
+void checkHome() {
   LOG_DEBUG("checkHome() invoked");
 
   LOG_DEBUG("Reading DHT11...");
@@ -285,8 +259,7 @@ void checkHome()
 
   LOG_INFO("Temp: " + String(temperature) + "°C | Hum: " + String(humidity) + "%");
   logMsg("[INFO]: Temp: " + String(temperature) + "°C | Hum: " + String(humidity) + "%");
-  if (isnan(humidity) || isnan(temperature))
-  {
+  if (isnan(humidity) || isnan(temperature)) {
     LOG_ERROR("DHT11 read failed!");
     logMsg("[ERROR]: DHT11 read failed!");
     return;
@@ -296,8 +269,7 @@ void checkHome()
   Blynk.virtualWrite(V0, temperature);
   Blynk.virtualWrite(V1, humidity);
 
-  if (isManualMode)
-  {
+  if (isManualMode) {
     LOG_DEBUG("Skipping auto control (Manual Mode)");
     LOG_DEBUG("checkHome() ended.");
     return;
@@ -311,8 +283,7 @@ void checkHome()
 
 // --- TIMER 2: MOISTURE & PUMP LOGIC ---
 // Critical (Pump ON): Every 1 SECOND
-void checkMoisture()
-{
+void checkMoisture() {
   LOG_DEBUG("checkMoisture() invoked");
 
   LOG_DEBUG("Reading Moisture Sensor...");
@@ -328,12 +299,10 @@ void checkMoisture()
   LOG_DEBUG("Writing to Blynk V3 (Soil Moisture)...");
   Blynk.virtualWrite(V3, moisturePercent);
 
-  if (moisturePercent < MIN_MOISTURE_THRESHOLD && !isPumpOn)
-  {
+  if (moisturePercent < MIN_MOISTURE_THRESHOLD && !isPumpOn) {
     digitalWrite(PUMP_IN3, HIGH);
     digitalWrite(PUMP_IN4, LOW);
-    for (int i = 0; i <= 255; i += 5)
-    {
+    for (int i = 0; i <= 255; i += 5) {
       ledcWrite(PUMP_ENB, i);
       delay(10);
     }
@@ -344,10 +313,8 @@ void checkMoisture()
     timer.changeInterval(moistureTimerID, CRITICAL_MOISTURE_TIMER_INTERVAL);
   }
 
-  else if (moisturePercent > MAX_MOISTURE_THRESHOLD && isPumpOn)
-  {
-    for (int i = 255; i >= 0; i -= 5)
-    {
+  else if (moisturePercent > MAX_MOISTURE_THRESHOLD && isPumpOn) {
+    for (int i = 255; i >= 0; i -= 5) {
       ledcWrite(PUMP_ENB, i);
       delay(10);
     }
@@ -363,8 +330,7 @@ void checkMoisture()
 }
 
 // Check RFID Card
-void checkRFID()
-{
+void checkRFID() {
 
   if (!rfid.PICC_IsNewCardPresent())
     return;
@@ -374,15 +340,13 @@ void checkRFID()
   LOG_DEBUG("checkRFID() invoked");
 
   String content = "";
-  for (byte i = 0; i < rfid.uid.size; i++)
-  {
+  for (byte i = 0; i < rfid.uid.size; i++) {
     content.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
     content.concat(String(rfid.uid.uidByte[i], HEX));
   }
   content.toUpperCase();
 
-  if (content.substring(1) == masterKeyUID)
-  {
+  if (content.substring(1) == masterKeyUID) {
     isHome = !isHome;
     LOG_INFO("✓ Access Granted!");
     logMsg("[INFO]: ✓ Access Granted!");
@@ -390,58 +354,38 @@ void checkRFID()
     LOG_INFO("Home Status: " + String(isHome ? "UNLOCKED" : "LOCKED"));
     logMsg("[INFO]: Home Status: " + String(isHome ? "UNLOCKED" : "LOCKED"));
     Serial.println("==========================");
-    if (!isHome)
-    {
+    if (!isHome) {
       LOG_DEBUG("Updating Blynk V4 (Home Status) to 0...");
       Blynk.virtualWrite(V4, "Locked");
       greenLedOnAndOff(500);
       delay(250);
       greenLedOnAndOff(500);
       saveBool("isHome", isHome);
-    }
-    else
-    {
+    } else {
       LOG_DEBUG("Updating Blynk V4 (Home Status) to 1...");
       Blynk.virtualWrite(V4, "Unlocked");
       greenLedOnAndOff(500);
       saveBool("isHome", isHome);
     }
     delay(1000);
-  }
-  else
-  {
+  } else {
     LOG_INFO("✗ Access Denied!");
-    logMsg("[WARN]: Unauthorized RFID detected! at " + String(hour()) + ":" + String(minute()));
+    logMsg("[WARN]: Unauthorized RFID detected!");
     redLedOnAndOff(2000);
 
-    if (Blynk.connected())
-    {
-      unsigned long now = millis();
+    Blynk.logEvent(
+      "unauthorized_access",
+      "🚨 Security Alert!\nUnauthorized RFID access detected at your home.");
 
-      if (now - lastAlertTime > ALERT_COOLDOWN)
-      {
-        Blynk.logEvent(
-            "unauthorized_access",
-            "🚨 Security Alert!\nUnauthorized RFID access detected at your home.");
-
-        lastAlertTime = now;
-
-        LOG_INFO("Security alert sent to owner");
-        logMsg("[INFO]: Security alert sent to owner");
-      }
-      else
-      {
-        LOG_DEBUG("Alert suppressed due to cooldown");
-      }
-    }
+    LOG_INFO("Security alert sent to owner");
+    logMsg("[INFO]: Security alert sent to owner");
   }
 
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
   delay(5000);
   LOG_INFO("========== SYSTEM BOOT ==========");
@@ -472,7 +416,7 @@ void setup()
   ledcWrite(PUMP_ENB, 0);
 
   LOG_DEBUG("Initializing SPI for RFID...");
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN); // SCK, MISO, MOSI
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN);  // SCK, MISO, MOSI
 
   LOG_DEBUG("Initializing RFID Reader...");
   rfid.PCD_Init();
@@ -482,13 +426,10 @@ void setup()
   byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
   LOG_DEBUG("RFID Firmware Version: 0x" + String(version, HEX));
 
-  if (version == 0x00 || version == 0xFF)
-  {
+  if (version == 0x00 || version == 0xFF) {
     LOG_WARN("✗ WARNING: RFID not detected!");
     LOG_WARN("System will continue, but RFID won't work");
-  }
-  else
-  {
+  } else {
     LOG_INFO("✓ RFID OK");
   }
 
@@ -510,40 +451,34 @@ void setup()
   apBlinking = false;
   digitalWrite(ESP32_LED_PIN, LOW);
 
-  if (!connectWiFi)
-  {
+  if (!connectWiFi) {
     LOG_ERROR("✗ WiFi Connection Failed!");
     LOG_ERROR("Failed to connect to WiFi and timeout reached!");
     LOG_ERROR("Restarting ESP32...");
     delay(3000);
     ESP.restart();
-  }
-  else
-  {
+  } else {
     LOG_INFO("✓ WiFi Connected!");
     ledWiFi();
   }
 
   Blynk.config(BLYNK_AUTH_TOKEN);
 
-  if (Blynk.connect(10000))
-  {
+  if (Blynk.connect(10000)) {
     LOG_INFO("✓ Blynk Connected!");
     Blynk.syncAll();
     terminal.clear();
     logMsg("[INFO]: ESP32 is Connected to Blynk!");
-  }
-  else
-  {
+  } else {
     LOG_ERROR("Blynk connection failed!");
     ledWiFi();
   }
 
   LOG_DEBUG("Initial States to Blynk...");
-  Blynk.virtualWrite(V2, 0);                              // LED
-  Blynk.virtualWrite(V4, isHome ? "Unlocked" : "Locked"); // Home Status
-  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);                // Fan
-  Blynk.virtualWrite(V6, isManualMode ? 1 : 0);           // Manual Mode
+  Blynk.virtualWrite(V2, 0);                               // LED
+  Blynk.virtualWrite(V4, isHome ? "Unlocked" : "Locked");  // Home Status
+  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);                 // Fan
+  Blynk.virtualWrite(V6, isManualMode ? 1 : 0);            // Manual Mode
   Blynk.syncVirtual(V5, V7);
 
   LOG_DEBUG("Initiating the timers..");
@@ -553,12 +488,10 @@ void setup()
   LOG_INFO("========== BOOT COMPLETE ==========");
 }
 
-BLYNK_WRITE(V2)
-{
+BLYNK_WRITE(V2) {
   LOG_DEBUG("Blynk V2 (LED) Value: " + String(param.asInt()));
 
-  if (!isHome)
-  {
+  if (!isHome) {
     LOG_WARN("Light Bulb OFF (Not in a Home)");
     logMsg("[WARN]: Light Bulb OFF (Not in a Home)");
     LOG_DEBUG("Updating Blynk V2 (LED) to 0...");
@@ -567,31 +500,25 @@ BLYNK_WRITE(V2)
   }
 
   int buttonState = param.asInt();
-  if (buttonState == 1)
-  {
+  if (buttonState == 1) {
     digitalWrite(LED_PIN, HIGH);
     LOG_INFO("Light Bulb ON!");
     logMsg("[INFO]: Light Bulb ON!");
-  }
-  else
-  {
+  } else {
     digitalWrite(LED_PIN, LOW);
     LOG_INFO("Light Bulb OFF!");
     logMsg("[INFO]: Light Bulb OFF!");
   }
 }
 
-BLYNK_WRITE(V5)
-{
+BLYNK_WRITE(V5) {
 
-  if (!isHome)
-  {
+  if (!isHome) {
     Blynk.virtualWrite(V5, 0);
     return;
   }
 
-  if (!isManualMode)
-  {
+  if (!isManualMode) {
     LOG_WARN("Fan not in Manual Mode");
     logMsg("[WARN]: Fan not in Manual Mode");
     LOG_DEBUG("Updating Blynk V5 (Fan) to 0...");
@@ -599,8 +526,7 @@ BLYNK_WRITE(V5)
     return;
   }
 
-  if (manualFanSpeedPercent == 0)
-  {
+  if (manualFanSpeedPercent == 0) {
     LOG_WARN("Fan speed is 0%, not starting fan");
     Blynk.virtualWrite(V5, 0);
     return;
@@ -611,8 +537,7 @@ BLYNK_WRITE(V5)
 
   int buttonState = param.asInt();
 
-  if (buttonState == 1)
-  {
+  if (buttonState == 1) {
     isFanOn = true;
 
     int pwm = (manualFanSpeedPercent * 255) / 100;
@@ -620,9 +545,7 @@ BLYNK_WRITE(V5)
 
     LOG_INFO("Fan ON and Speed at " + String(manualFanSpeedPercent) + "%");
     logMsg("[INFO]: Fan ON and Speed at " + String(manualFanSpeedPercent) + "%");
-  }
-  else
-  {
+  } else {
     isFanOn = false;
     ledcWrite(FAN_ENA, 0);
 
@@ -631,20 +554,16 @@ BLYNK_WRITE(V5)
   }
 }
 
-BLYNK_WRITE(V6)
-{
+BLYNK_WRITE(V6) {
   LOG_DEBUG("Blynk V6 (Manual Mode) Value: " + String(param.asInt()));
 
   int buttonState = param.asInt();
-  if (buttonState == 1)
-  {
+  if (buttonState == 1) {
     isManualMode = true;
     saveBool("isManual", isManualMode);
     LOG_INFO("Manual Mode ENABLED");
     logMsg("[INFO]: Manual Mode ENABLED");
-  }
-  else
-  {
+  } else {
     isManualMode = false;
     saveBool("isManual", isManualMode);
     LOG_INFO("Manual Mode DISABLED");
@@ -652,14 +571,12 @@ BLYNK_WRITE(V6)
   }
 }
 
-BLYNK_WRITE(V7)
-{ // Fan Speed Slider (0–100)
+BLYNK_WRITE(V7) {  // Fan Speed Slider (0–100)
 
   manualFanSpeedPercent = param.asInt();
   LOG_DEBUG("Fan Speed Slider: " + String(manualFanSpeedPercent) + "%");
 
-  if (!isHome || !isFanOn || !isManualMode)
-  {
+  if (!isHome || !isFanOn || !isManualMode) {
     return;
   }
 
@@ -670,61 +587,52 @@ BLYNK_WRITE(V7)
   logMsg("[INFO]: Fan speed updated to " + String(manualFanSpeedPercent) + "%");
 }
 
-BLYNK_WRITE(V10)
-{
+BLYNK_WRITE(V10) {
   MIN_TEMP_THRESHOLD = param.asInt();
   LOG_INFO("MIN_TEMP_THRESHOLD set to " + String(MIN_TEMP_THRESHOLD));
   logMsg("[INFO]: MIN_TEMP_THRESHOLD set to " + String(MIN_TEMP_THRESHOLD));
 }
 
-BLYNK_WRITE(V11)
-{
+BLYNK_WRITE(V11) {
   MID_TEMP_THRESHOLD = param.asInt();
   LOG_INFO("MID_TEMP_THRESHOLD set to " + String(MID_TEMP_THRESHOLD));
   logMsg("[INFO]: MID_TEMP_THRESHOLD set to " + String(MID_TEMP_THRESHOLD));
 }
 
-BLYNK_WRITE(V12)
-{
+BLYNK_WRITE(V12) {
   MAX_TEMP_THRESHOLD = param.asInt();
   LOG_INFO("MAX_TEMP_THRESHOLD set to " + String(MAX_TEMP_THRESHOLD));
   logMsg("[INFO]: MAX_TEMP_THRESHOLD set to " + String(MAX_TEMP_THRESHOLD));
 }
 
-BLYNK_WRITE(V13)
-{
+BLYNK_WRITE(V13) {
   DRY_SOIL_VALUE = param.asInt();
   LOG_INFO("DRY_SOIL_VALUE set to " + String(DRY_SOIL_VALUE));
   logMsg("[INFO]: DRY_SOIL_VALUE set to " + String(DRY_SOIL_VALUE));
 }
 
-BLYNK_WRITE(V14)
-{
+BLYNK_WRITE(V14) {
   WET_SOIL_VALUE = param.asInt();
   LOG_INFO("WET_SOIL_VALUE set to " + String(WET_SOIL_VALUE));
   logMsg("[INFO]: WET_SOIL_VALUE set to " + String(WET_SOIL_VALUE));
 }
 
-BLYNK_WRITE(V15)
-{
+BLYNK_WRITE(V15) {
   MIN_MOISTURE_THRESHOLD = param.asInt();
   LOG_INFO("MIN_MOISTURE_THRESHOLD set to " + String(MIN_MOISTURE_THRESHOLD));
   logMsg("[INFO]: MIN_MOISTURE_THRESHOLD set to " + String(MIN_MOISTURE_THRESHOLD));
 }
 
-BLYNK_WRITE(V16)
-{
+BLYNK_WRITE(V16) {
   MAX_MOISTURE_THRESHOLD = param.asInt();
   LOG_INFO("MAX_MOISTURE_THRESHOLD set to " + String(MAX_MOISTURE_THRESHOLD));
   logMsg("[INFO]: MAX_MOISTURE_THRESHOLD set to " + String(MAX_MOISTURE_THRESHOLD));
 }
 
-BLYNK_WRITE(V17)
-{
+BLYNK_WRITE(V17) {
   HOME_TIMER_INTERVAL = param.asLong() * 1000;
 
-  if (homeTimerID != -1)
-  {
+  if (homeTimerID != -1) {
     timer.deleteTimer(homeTimerID);
   }
 
@@ -734,12 +642,10 @@ BLYNK_WRITE(V17)
   logMsg("[INFO]: Home Timer updated to: " + String(HOME_TIMER_INTERVAL));
 }
 
-BLYNK_WRITE(V18)
-{
+BLYNK_WRITE(V18) {
   MOISTURE_TIMER_INTERVAL = param.asLong() * 1000;
 
-  if (moistureTimerID != -1)
-  {
+  if (moistureTimerID != -1) {
     timer.deleteTimer(moistureTimerID);
   }
 
@@ -749,47 +655,39 @@ BLYNK_WRITE(V18)
   logMsg("[INFO]: Moisture Timer updated to: " + String(MOISTURE_TIMER_INTERVAL));
 }
 
-BLYNK_WRITE(50)
-{
+BLYNK_WRITE(50) {
   isDebugEnabled = param.asInt();
   LOG_INFO("Debug Logging " + String(isDebugEnabled ? "ENABLED" : "DISABLED"));
   logMsg("[INFO]: Debug Logging " + String(isDebugEnabled ? "ENABLED" : "DISABLED"));
   saveBool("debug", isDebugEnabled);
 }
 
-void loop()
-{
+void loop() {
   Blynk.run();
   timer.run();
   checkRFID();
   ledAPLoop();
-  if (!WiFi.isConnected())
-  {
+  if (!WiFi.isConnected()) {
     apBlinking = true;
 
-    if (!wifiLost)
-    {
+    if (!wifiLost) {
       wifiLost = true;
       wifiLostTime = millis();
       LOG_ERROR("WiFi lost! Waiting before reboot...");
     }
     // Wait 15 seconds before reboot
-    if (millis() - wifiLostTime > 15000)
-    {
+    if (millis() - wifiLostTime > 15000) {
       LOG_ERROR("WiFi not restored. Rebooting...");
       delay(1000);
       ESP.restart();
     }
-  }
-  else if (!Blynk.connected())
-  {
+  } else if (!Blynk.connected()) {
     apBlinking = false;
     ledWiFi();
-    Blynk.connect(5000); // Try for 5 sec
+    Blynk.connect(5000);  // Try for 5 sec
   }
   // -------- WIFI OK --------
-  else
-  {
+  else {
     wifiLost = false;
     apBlinking = false;
     ledWiFi();
