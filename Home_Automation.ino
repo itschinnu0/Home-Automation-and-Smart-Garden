@@ -102,6 +102,10 @@ int WET_SOIL_VALUE;
 short MIN_MOISTURE_THRESHOLD;
 short MAX_MOISTURE_THRESHOLD;
 
+// ================= SECURITY NOTIFICATION =================
+unsigned long lastAlertTime = 0;
+const unsigned long ALERT_COOLDOWN = 30000; // 30 seconds
+
 // ================= OBJECTS =================
 WiFiManager wm;
 bool wifiLost = false;
@@ -407,7 +411,29 @@ void checkRFID()
   else
   {
     LOG_INFO("✗ Access Denied!");
+    logMsg("[WARN]: Unauthorized RFID detected! at " + String(hour()) + ":" + String(minute()));
     redLedOnAndOff(2000);
+
+    if (Blynk.connected())
+    {
+      unsigned long now = millis();
+
+      if (now - lastAlertTime > ALERT_COOLDOWN)
+      {
+        Blynk.logEvent(
+            "unauthorized_access",
+            "🚨 Security Alert!\nUnauthorized RFID access detected at your home.");
+
+        lastAlertTime = now;
+
+        LOG_INFO("Security alert sent to owner");
+        logMsg("[INFO]: Security alert sent to owner");
+      }
+      else
+      {
+        LOG_DEBUG("Alert suppressed due to cooldown");
+      }
+    }
   }
 
   rfid.PICC_HaltA();
@@ -514,10 +540,10 @@ void setup()
   }
 
   LOG_DEBUG("Initial States to Blynk...");
-  Blynk.virtualWrite(V2, 0);                    // LED
-  Blynk.virtualWrite(V4, isHome ? "Unlocked" : "Locked");       // Home Status
-  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);      // Fan
-  Blynk.virtualWrite(V6, isManualMode ? 1 : 0); // Manual Mode
+  Blynk.virtualWrite(V2, 0);                              // LED
+  Blynk.virtualWrite(V4, isHome ? "Unlocked" : "Locked"); // Home Status
+  Blynk.virtualWrite(V5, isFanOn ? 1 : 0);                // Fan
+  Blynk.virtualWrite(V6, isManualMode ? 1 : 0);           // Manual Mode
   Blynk.syncVirtual(V5, V7);
 
   LOG_DEBUG("Initiating the timers..");
