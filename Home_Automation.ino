@@ -1,6 +1,6 @@
 /************************************************************
  * SMART HOME AUTOMATION USING ESP32 & BLYNK
- * Author  : Chinnu0
+ * Author  : Vighnajit CHM 
  * Board   : ESP32
  * Features:
  *  - RFID-based Home Lock/Unlock
